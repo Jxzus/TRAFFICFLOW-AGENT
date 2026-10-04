@@ -1,0 +1,39 @@
+data:
+  h5_path: data/metr-la.h5          # ver README: descarga desde el repo DCRNN
+  adj_path: data/adj_mx.pkl         # data/sensor_graph/adj_mx.pkl en el repo DCRNN
+  synthetic: false                  # true = genera datos sintéticos con forma METR-LA
+  in_len: 12                        # 12 pasos de 5 min = 1 h de historia
+  out_len: 12                       # 12 pasos = 1 h; el paso 6 es el horizonte de 30 min
+  split: [0.7, 0.1, 0.2]            # entrenamiento / validación / prueba (cronológico)
+
+model:
+  dilations: [1, 2, 1, 2, 1, 2]
+  res_channels: 32
+  dilation_channels: 32
+  skip_channels: 128
+  end_channels: 256
+  emb_dim: 10
+  dropout: 0.3
+
+train:
+  epochs: 40
+  batch_size: 64
+  lr: 0.001
+  weight_decay: 0.0001
+  patience: 8
+  grad_clip: 5.0
+  seed: 42
+  device: auto
+  artifacts_dir: artifacts
+
+agent:
+  mape_target: 0.10                 # meta: MAPE a 30 min < 10 %
+  eval_horizon_steps: 6             # 6 x 5 min = 30 min
+  level_thresholds_mph: [50, 35, 20]  # >=50 fluido, >=35 moderado, >=20 denso, <20 congestionado
+  corridor_percentile: 25
+  atypical_z: 2.0                   # caída de velocidad vs. perfil histórico (desviaciones estándar)
+  atypical_fraction: 0.15           # fracción de sensores con caída atípica para declarar incidente
+  drift_window_steps: 288           # ventana móvil de evaluación (24 h)
+  drift_min_samples: 72
+  recalibration_cooldown_steps: 288
+  history_steps: 2016               # historial retenido para recalibrar (7 días)
