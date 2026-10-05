@@ -100,7 +100,7 @@ def run(cfg) -> dict:
     profile = HistoricalProfile().fit(tr)
     results = {"GraphWaveNet": horizon_report(pt, yt)}
     results["HistoricalAverage"] = horizon_report(baseline_predictions(ds_te, HistoricalAverageForecaster(profile, out_len)), yt)
-    results["Persistence"] = horizon_report(baseline_predictions(ds_te, PersistenceForecaster(out_len)), yt)
+    results["Persistence"] = horizon_report(baseline_predictions(ds_te, PersistenceForecaster(out_len, fallback=scaler.mean)), yt)
 
     os.makedirs(t["artifacts_dir"], exist_ok=True)
     torch.save(
