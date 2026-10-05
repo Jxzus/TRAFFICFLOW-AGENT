@@ -17,12 +17,14 @@ from .profile import HistoricalProfile
 class PersistenceForecaster:
     """Línea base: la última velocidad observada se mantiene constante."""
 
-    def __init__(self, out_len: int = 12):
-        self.out_len = out_len
+    def __init__(self, out_len: int = 12, fallback: float = 55.0):
+        self.out_len, self.fallback = out_len, fallback
 
     def predict(self, speeds, index):
         last = pd.DataFrame(speeds).ffill().to_numpy()[-1]
-        last = np.where(np.isnan(last), np.nanmean(speeds), last)
+        # sensores sin ningún dato en la ventana -> media de los demás; si toda la ventana falta -> fallback
+        fill = float(np.nanmean(last)) if np.isfinite(last).any() else self.fallback
+        last = np.where(np.isnan(last), fill, last)
         return np.tile(last, (self.out_len, 1)).astype(np.float32)
 
 
