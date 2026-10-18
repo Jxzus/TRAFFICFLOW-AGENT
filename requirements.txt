@@ -4,3 +4,5 @@ tables
 pyyaml
 torch
 pytest
+fastapi
+uvicorn
