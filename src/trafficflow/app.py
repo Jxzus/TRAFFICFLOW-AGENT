@@ -97,6 +97,23 @@ async def lifespan(app: FastAPI):
     yield
 
 
+def to_native(obj: Any) -> Any:
+    """Convierte recursivamente tipos de NumPy y Pandas a tipos nativos estándar de Python."""
+    if isinstance(obj, (np.floating, float)):
+        return float(obj) if not np.isnan(obj) else None
+    if isinstance(obj, (np.integer, int)):
+        return int(obj)
+    if isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return [to_native(x) for x in obj.tolist()]
+    if isinstance(obj, dict):
+        return {str(k): to_native(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [to_native(x) for x in obj]
+    return obj
+
+
 app = FastAPI(
     title="TrafficFlow-Agent API",
     description="Agente Inteligente de Predicción y Control de Congestión Vehicular",
@@ -107,25 +124,26 @@ app = FastAPI(
 
 @app.get("/health")
 def health():
-    return {
+    return JSONResponse(content=to_native({
         "status": "healthy",
         "agent": "TrafficFlow-Agent",
         "version": "1.0.0",
         "mode": app_state.get("data_mode", "Desconocido"),
-    }
+    }))
 
 
 @app.get("/api/status")
 def get_status():
     agent: TrafficFlowAgent = app_state["agent"]
     rep = agent.report()
-    return {
+    data = {
         "mode": app_state.get("data_mode"),
         "current_timestamp": str(app_state.get("current_ts")),
-        "total_steps": agent.step_i + 1,
+        "total_steps": int(agent.step_i + 1),
         "last_decision": app_state.get("last_decision"),
         "report": rep,
     }
+    return JSONResponse(content=to_native(data))
 
 
 @app.post("/api/step")
@@ -138,12 +156,12 @@ def run_step():
 
     decision = agent.step(ts, speeds)
     app_state["last_decision"] = {
-        "status": decision.status if decision else "Iniciando búfer",
-        "level": decision.level if decision else 0,
-        "level_name": decision.level_name if decision else "N/A",
-        "corridor_speed_mph": round(decision.corridor_speed_mph, 2) if decision else round(float(np.nanmean(speeds)), 2),
-        "atypical_fraction": round(decision.atypical_fraction * 100, 1) if decision else 0.0,
-        "affected_sensors_count": len(decision.affected_sensors) if decision else 0,
+        "status": str(decision.status) if decision else "Iniciando búfer",
+        "level": int(decision.level) if decision else 0,
+        "level_name": str(decision.level_name) if decision else "N/A",
+        "corridor_speed_mph": round(float(decision.corridor_speed_mph), 2) if decision else round(float(np.nanmean(speeds)), 2),
+        "atypical_fraction": round(float(decision.atypical_fraction) * 100, 1) if decision else 0.0,
+        "affected_sensors_count": int(len(decision.affected_sensors)) if decision else 0,
     } if decision else {"status": "Llenando búfer histórico (pasos iniciales)", "level_name": "Inicializando"}
 
     last_action = agent.tms.events[-1] if agent.tms.events else None
@@ -154,26 +172,29 @@ def run_step():
     app_state["current_ts"] = next_ts
     app_state["current_speeds"] = next_speeds
 
+    mape_tuple = agent.tracker.rolling_mape(agent.h)
+    mape_val = float(mape_tuple[0]) if (mape_tuple and not np.isnan(mape_tuple[0])) else None
+
     step_summary = {
-        "step": agent.step_i,
+        "step": int(agent.step_i),
         "timestamp": str(ts),
         "observed_mean_speed": round(float(np.nanmean(speeds)), 2),
         "decision": app_state["last_decision"],
         "action_taken": bool(last_action),
         "last_action": last_action,
-        "rolling_mape_30min": round(agent.tracker.rolling_mape(agent.h)[0] * 100, 2) if not np.isnan(agent.tracker.rolling_mape(agent.h)[0]) else None,
+        "rolling_mape_30min": round(mape_val * 100, 2) if mape_val is not None else None,
     }
     app_state["history"].append(step_summary)
     if len(app_state["history"]) > 50:
         app_state["history"].pop(0)
 
-    return step_summary
+    return JSONResponse(content=to_native(step_summary))
 
 
 @app.post("/api/reset")
 def reset_simulation():
     init_agent()
-    return {"status": "reiniciado con éxito"}
+    return JSONResponse(content={"status": "reiniciado con éxito"})
 
 
 @app.get("/", response_class=HTMLResponse)
