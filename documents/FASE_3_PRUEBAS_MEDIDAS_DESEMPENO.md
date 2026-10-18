@@ -1,7 +1,9 @@
 # FASE 3 — PRUEBAS BASADAS EN LAS MEDIDAS DE DESEMPEÑO
 ## TrafficFlow-Agent: Agente de Predicción y Control de Congestión Vehicular
 
-- **Estudiante:** Jesús Andrés Pérez Fuentes (T00078491)
+- **Estudiantes (Pareja de trabajo):**
+  - Jesús Andrés Pérez Fuentes (T00078491)
+  - Cristian David Cardeño Gulloso (T00078446)
 - **Curso:** Inteligencia Artificial — Universidad Tecnológica de Bolívar (UTB)
 - **Docente:** Edwin Alexander Puertas Del Castillo
 - **Fecha:** Octubre de 2026
