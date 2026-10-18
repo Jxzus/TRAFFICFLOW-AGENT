@@ -333,7 +333,7 @@ def dashboard():
             <div class="cycle-label">4. Aprendizaje<br><small>Evalúa MAPE</small></div>
         </div>
     </div>
-    <div id="cycle-msg" class="text-center text-muted small mt-1">Presiona «Avanzar» para iniciar el ciclo agéntico.</div>
+    <div id="cycle-msg" class="text-center text-white small mt-1">Presiona «Avanzar» para iniciar el ciclo agéntico.</div>
 </div>
 
 <!-- ═══ MÉTRICAS ═══ -->
