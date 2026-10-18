@@ -1,5 +1,8 @@
 # TrafficFlow-Agent: Agente de Predicción y Control de Congestión Vehicular
 
+**Repositorio:** [Jxzus/TRAFFICFLOW-AGENT](https://github.com/Jxzus/TRAFFICFLOW-AGENT)
+**Aplicación desplegada:** [trafficflow-agent.onrender.com](https://trafficflow-agent.onrender.com/)
+
 Agente inteligente basado en modelo con capacidad de aprendizaje (*Model-based Learning Agent*, AIMA Russell & Norvig) para un corredor vial piloto instrumentado con sensores de velocidad. Cada 5 minutos percibe las lecturas de velocidad de los sensores, pronostica el nivel de congestión de los **próximos 30 minutos** (meta SMART: **MAPE < 10 %**), distingue congestión **recurrente** de un **incidente atípico**, actúa sobre el sistema de gestión de tránsito (TMS) y se recalibra adaptativamente comparando cada pronóstico con lo realmente observado.
 
 - **Datos:** [METR-LA](https://github.com/liyaguang/DCRNN) (207 sensores, Los Ángeles, marzo–junio 2012, intervalos de 5 min).
@@ -110,6 +113,25 @@ Cada ejecución genera automáticamente en el directorio `outputs/`:
 2. `outputs/tms_actions.jsonl`: Bitácora específica de planes semafóricos y alertas enviados a los actuadores.
 3. `outputs/simulation_report.json`: Reporte cuantitativo con el MAPE a 15, 30 y 60 min, desglose de estados y cumplimiento de la meta SMART.
 
+### Resultados de las pruebas de Fase 3 y ubicación de los logs
+
+La tabla siguiente referencia el log de evidencia de cada escenario. Los archivos `.jsonl` contienen las trazas de las ejecuciones en formato JSON Lines; el resumen numérico completo de las 50 ejecuciones también está disponible en [`outputs/phase3/phase3_results_summary.json`](outputs/phase3/phase3_results_summary.json). La tabla detallada de medidas, umbrales y análisis se encuentra en [FASE_3_PRUEBAS_MEDIDAS_DESEMPENO.md](documents/FASE_3_PRUEBAS_MEDIDAS_DESEMPENO.md).
+
+| Escenario | MAPE a 30 min (promedio) | Log de pruebas |
+|---|---:|---|
+| 1. Tráfico fluido sostenido | 8.46% | [`scenario_1_evidence.jsonl`](outputs/phase3/scenario_1_evidence.jsonl) |
+| 2. Hora pico recurrente matutina | 13.90% | [`scenario_2_evidence.jsonl`](outputs/phase3/scenario_2_evidence.jsonl) |
+| 3. Hora pico recurrente vespertina | 22.76% | [`scenario_3_evidence.jsonl`](outputs/phase3/scenario_3_evidence.jsonl) |
+| 4. Tráfico de fin de semana | 9.95% | [`scenario_4_evidence.jsonl`](outputs/phase3/scenario_4_evidence.jsonl) |
+| 5. Transición en el umbral de 35 mph | 6.25% | [`scenario_5_evidence.jsonl`](outputs/phase3/scenario_5_evidence.jsonl) |
+| 6. Incidente atípico severo y corto | 29.12% | [`scenario_6_evidence.jsonl`](outputs/phase3/scenario_6_evidence.jsonl) |
+| 7. Incidente atípico prolongado en hora pico | 41.63% | [`scenario_7_evidence.jsonl`](outputs/phase3/scenario_7_evidence.jsonl) |
+| 8. Falla masiva de sensores | 13.45% | [`scenario_8_evidence.jsonl`](outputs/phase3/scenario_8_evidence.jsonl) |
+| 9. Entorno meteorológico adverso | 34.51% | [`scenario_9_evidence.jsonl`](outputs/phase3/scenario_9_evidence.jsonl) |
+| 10. Entradas inválidas o corruptas | 28.63% | [`scenario_10_evidence.jsonl`](outputs/phase3/scenario_10_evidence.jsonl) |
+
+La bitácora de acciones del actuador asociada a la simulación está en [`outputs/tms_actions.jsonl`](outputs/tms_actions.jsonl).
+
 ---
 
 ## Cómo Decide el Agente
@@ -124,4 +146,4 @@ Cada ejecución genera automáticamente en el directorio `outputs/`:
 ## Licencia y Créditos
 
 Desarrollado para el curso de **Inteligencia Artificial** — Universidad Tecnológica de Bolívar (UTB).  
-Autor: Jesús Andrés Pérez Fuentes.
+Autores: Jesús Andrés Pérez Fuentes y Cristian David Cardeno Gulloso
