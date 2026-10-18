@@ -127,11 +127,13 @@ class TrafficEnvironment:
         """Si el agente aplica un plan de mitigación, mejora moderadamente el flujo en sensores afectados."""
         plan = action.get("plan")
         affected = action.get("sensors", [])
+        if not hasattr(self, "_sensor_id_to_idx"):
+            self._sensor_id_to_idx = {s: i for i, s in enumerate(self.sensor_ids)}
         if plan in ("PICO_RECURRENTE", "INCIDENTE") and affected:
-            # Incremento moderado de velocidad por extensión de fase verde (+2 a +5 mph)
             bonus = 4.0 if plan == "INCIDENTE" else 2.5
-            sensor_indices = [self.sensor_ids.index(s) for s in affected if s in self.sensor_ids]
-            self._current_speed_modifiers[sensor_indices] = bonus
+            sensor_indices = [self._sensor_id_to_idx[s] for s in affected if s in self._sensor_id_to_idx]
+            if sensor_indices:
+                self._current_speed_modifiers[sensor_indices] = bonus
         else:
             # Decaimiento del efecto si se restablece el plan base
             self._current_speed_modifiers *= 0.5
