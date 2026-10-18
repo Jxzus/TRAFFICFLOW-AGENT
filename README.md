@@ -1,83 +1,124 @@
-# TrafficFlow-Agent
+# TrafficFlow-Agent: Agente de Predicción y Control de Congestión Vehicular
 
-Agente de predicción de congestión vehicular para un corredor vial piloto. Cada 5 minutos recibe las
-velocidades de los sensores, pronostica la velocidad y el nivel de congestión de los **próximos 30 minutos**
-(meta: **MAPE < 10 %**), distingue congestión **recurrente** de un **incidente atípico**, actúa sobre un sistema
-de gestión de tránsito y se recalibra comparando cada pronóstico con lo realmente observado.
+Agente inteligente basado en modelo con capacidad de aprendizaje (*Model-based Learning Agent*, AIMA Russell & Norvig) para un corredor vial piloto instrumentado con sensores de velocidad. Cada 5 minutos percibe las lecturas de velocidad de los sensores, pronostica el nivel de congestión de los **próximos 30 minutos** (meta SMART: **MAPE < 10 %**), distingue congestión **recurrente** de un **incidente atípico**, actúa sobre el sistema de gestión de tránsito (TMS) y se recalibra adaptativamente comparando cada pronóstico con lo realmente observado.
 
-- Datos: [METR-LA](https://github.com/liyaguang/DCRNN) (207 sensores, Los Ángeles, marzo–junio 2012, intervalos de 5 min).
-- Diseño: [DL-Traff (arXiv 2108.09091)](https://arxiv.org/abs/2108.09091), de donde se toma el protocolo de evaluación y el modelo base (Graph WaveNet).
+- **Datos:** [METR-LA](https://github.com/liyaguang/DCRNN) (207 sensores, Los Ángeles, marzo–junio 2012, intervalos de 5 min).
+- **Diseño:** Marco AIMA y [DL-Traff (arXiv 2108.09091)](https://arxiv.org/abs/2108.09091), de donde se toma el protocolo de evaluación y la arquitectura base (Graph WaveNet).
+- **Documentación de Fase 2:** Consulta [FASE_2_DESARROLLO_DEL_AGENTE.md](FASE_2_DESARROLLO_DEL_AGENTE.md) para el informe detallado de implementación y mapeo con la Fase 1.
 
-## Arquitectura
+---
+
+## Arquitectura del Ciclo Agéntico (AIMA)
 
 ```
-sensores (5 min) ─► ingesta ─► pronosticador (Graph WaveNet) ─► velocidad 5..60 min
-                                      │                              │
-                                      │                    nivel de congestión (4 niveles)
-                                      │                              │
-                      perfil histórico (día, franja) ─► recurrente vs. atípico (z-score)
-                                                                     │
-                                       TMS: planes semafóricos + mensajes a conductores
-                                                                     │
-        pronóstico vs. observado ─► MAPE móvil a 30 min ─► recalibración si MAPE > 10 %
+sensores (5 min) ─► [PERCEPCIÓN] ─► ingesta, limpieza de faltantes y memoria de corto/largo plazo
+                          │
+                          ▼
+                    [DECISIÓN]   ─► pronosticador (Graph WaveNet) ─► velocidad 5..60 min
+                          │               │
+                          │         perfil histórico (día, franja) ─► z-score (recurrente vs. atípico)
+                          │               │
+                          ▼               ▼
+                     [ACCIÓN]    ─► TMS: planes semafóricos (+15 % / +30 % verde) + mensajes a conductores
+                          │
+                          ▼
+                   [APRENDIZAJE] ─► crítica: pronóstico vs. observado a 30 min (MAPE móvil en 24 h)
+                                    recalibración adaptativa (fine-tuning) si MAPE > 10 %
 ```
 
-| Módulo | Función |
+| Módulo | Función en la Arquitectura |
 |---|---|
-| `data.py` | Carga METR-LA, división cronológica 70/10/20, escalado y ventanas (12 pasos → 12 pasos) sin fuga de datos |
-| `model.py` | Graph WaveNet compacto (convoluciones temporales causales + grafo con adyacencia adaptativa) |
-| `forecasters.py` | Pronosticadores intercambiables: Graph WaveNet, promedio histórico, persistencia |
-| `profile.py` | Perfil típico por sensor, día de la semana y franja de 5 min |
-| `congestion.py` | Velocidad → nivel (fluido / moderado / denso / congestionado) |
-| `agent.py` | Ciclo del agente: pronosticar, evaluar, actuar, comparar y recalibrar |
-| `actuator.py` | Interfaz con el sistema de gestión de tránsito (simulada en el piloto) |
-| `train.py` / `simulate.py` | Entrenamiento con comparación contra líneas base / reproducción del flujo en vivo |
+| `agent.py` | Implementación del agente: ciclo explícito `perceive()` $\to$ `decide()` $\to$ `act()` $\to$ `learn()`, y registro de logs auditables. |
+| `environment.py` | Entorno vial (`TrafficEnvironment`) real o simulado (estocástico, parcialmente observable, secuencial y dinámico). |
+| `data.py` | Carga de METR-LA, partición cronológica 70/10/20, escalado y ventanas deslizantes sin fuga de datos. |
+| `model.py` | Graph WaveNet compacto (convoluciones temporales causales dilatadas + difusión adaptativa sobre grafos). |
+| `forecasters.py` | Modelos de pronóstico intercambiables: Graph WaveNet, promedio histórico y persistencia. |
+| `profile.py` | Memoria de largo plazo: perfil típico por sensor, día de la semana y franja de 5 min. |
+| `congestion.py` | Evaluación analítica: velocidad $\to$ nivel (fluido / moderado / denso / congestionado). |
+| `actuator.py` | Interfaz con el sistema de gestión de tránsito (TMS) y mensajería a conductores. |
+| `synthetic.py` | Generador sintético de flujos viales con propagación espacial de congestión e incidentes inyectados. |
+| `simulate.py` | Simulador de flujo en vivo paso a paso a través del agente con generación de logs para Fase 3. |
+| `train.py` | Entrenamiento supervisado y evaluación comparativa contra líneas base. |
 
-## Instalación
+---
 
+## Instalación y Configuración
+
+### 1. Clonar el repositorio y crear entorno virtual
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pytest -q
+git clone https://github.com/Jxzus/TRAFFICFLOW-AGENT.git
+cd TRAFFICFLOW-AGENT-1
+
+python -m venv .venv
+# En Windows:
+.venv\Scripts\activate
+# En Linux / macOS:
+# source .venv/bin/activate
 ```
+
+### 2. Instalar dependencias
+```bash
+pip install -r requirements.txt
+pip install -e ".[dev]"
+```
+
+### 3. Verificar la instalación con las pruebas unitarias
+```bash
+pytest -v
+```
+*(8 pruebas pasan exitosamente: causalidad temporal, niveles de congestión, detección de incidentes, ciclo explícito, entorno estocástico y recalibración por deriva).*
+
+---
 
 ## Datos
 
-1. Descarga `metr-la.h5` desde el enlace del README del repositorio DCRNN y guárdalo en `data/metr-la.h5`.
-2. Copia `data/sensor_graph/adj_mx.pkl` del mismo repositorio a `data/adj_mx.pkl`.
+El repositorio ya incluye soporte directo para:
+1. **Datos reales:** Si se dispone de `metr-la.h5` y `adj_mx.pkl`, deben ubicarse en `data/metr-la.h5` y `data/adj_mx.pkl`.
+2. **Entorno sintético:** Si no se descargan los archivos reales, se puede ejecutar cualquier comando añadiendo el parámetro `--synthetic`.
 
-Los ceros del dataset son datos faltantes: se enmascaran en entrenamiento y en todas las métricas.
+---
 
-## Uso
+## Uso y Ejecución del Agente
 
+### Reproducir el flujo en vivo a través del agente (Simulación)
+
+**Ejecución estándar sobre datos reales:**
 ```bash
-python -m trafficflow.train                 # entrena y evalúa (GPU recomendada)
-python -m trafficflow.simulate --steps 5000 # reproduce el conjunto de prueba a través del agente
+python -m trafficflow.simulate --steps 500 --out outputs
 ```
 
-Sin datos reales, para probar el flujo completo: añade `--synthetic` a ambos comandos.
-
-Salidas: `artifacts/model.pt`, `artifacts/metrics.json` (MAE/RMSE/MAPE a 15, 30 y 60 min, con líneas base),
-`outputs/simulation_report.json` y `outputs/tms_actions.jsonl` (acciones enviadas al TMS).
-
-## Cómo decide el agente
-
-- **Nivel** del corredor: percentil 25 de la velocidad pronosticada (30 min) → fluido ≥ 50 mph, moderado ≥ 35, denso ≥ 20, congestionado < 20.
-- **Atípico** si al menos 15 % de los sensores tienen una velocidad pronosticada ≥ 2 desviaciones por debajo de lo típico para ese día y hora; **recurrente** si hay congestión pero dentro del patrón; **normal** en otro caso.
-- **Acción**: plan `PICO_RECURRENTE` (+15 % verde) o `INCIDENTE` (+30 % verde) y mensaje a conductores. Solo se envía cuando la situación cambia o cada 30 min para confirmar; al normalizarse se restablece el plan base.
-- **Aprendizaje**: cada pronóstico se compara con lo observado; si el MAPE móvil a 30 min (24 h) supera 10 %, se ajusta el modelo con los últimos 7 días (con enfriamiento de 24 h).
-
-Todos los umbrales están en `configs/default.yaml`.
-
-## Limitaciones
-
-- METR-LA es de 2012, solo autopistas y sin etiquetas de incidentes; la detección de atípicos se valida con incidentes inyectados.
-- No hay semáforos reales en el dataset: el TMS es simulado (`SimulatedTMS`). Para un sistema real, implementa `TrafficManagementClient`.
-- La recalibración es un ajuste fino corto; en producción conviene reentrenar periódicamente con validación.
-
-## Subir a GitHub
-
+**Ejecución con entorno sintético estocástico y lazo cerrado (*Closed-Loop*):**
 ```bash
-git init && git add . && git commit -m "TrafficFlow-Agent: versión inicial"
-gh repo create trafficflow-agent --public --source=. --push   # o crea el repo en github.com y usa git remote add + git push
+python -m trafficflow.simulate --synthetic --noise-std 2.0 --failure-prob 0.05 --closed-loop --steps 500 --out outputs
 ```
+
+### Entrenar o evaluar el modelo
+```bash
+python -m trafficflow.train                 # con datos METR-LA
+python -m trafficflow.train --synthetic     # con datos sintéticos
+```
+
+---
+
+## Registro (Log) de Ejecución y Salidas
+
+Cada ejecución genera automáticamente en el directorio `outputs/`:
+1. `outputs/execution_log.jsonl`: **Registro completo de ejecución** (percepciones, decisiones, acciones y retroalimentación de aprendizaje con marcas de tiempo ISO), base para los experimentos de la **Fase 3**.
+2. `outputs/tms_actions.jsonl`: Bitácora específica de planes semafóricos y alertas enviados a los actuadores.
+3. `outputs/simulation_report.json`: Reporte cuantitativo con el MAPE a 15, 30 y 60 min, desglose de estados y cumplimiento de la meta SMART.
+
+---
+
+## Cómo Decide el Agente
+
+- **Nivel de congestión:** Percentil 25 de la velocidad pronosticada a 30 min $\to$ fluido $\ge 50$ mph, moderado $\ge 35$, denso $\ge 20$, congestionado $< 20$.
+- **Atípico vs. Recurrente:** Se calculan las desviaciones típicas ($z$-score) de la predicción respecto a la media histórica del mismo día y hora. Si al menos el $15\%$ de los sensores presentan $z < -2.0$, se clasifica como `atipica` (posible incidente); si hay congestión pero sigue el patrón histórico, se clasifica como `recurrente`.
+- **Acción:** Plan `PICO_RECURRENTE` (+15 % verde) o `INCIDENTE` (+30 % verde) y mensajes informativos a paneles viales. Solo se envía ante cambios de estado o cada 30 min para confirmación; al normalizarse se restablece el plan base.
+- **Aprendizaje:** El agente rastrea el error relativo a 30 min. Si el MAPE móvil a 30 min en 24 h supera el $10\%$, dispara recalibración (*fine-tuning*) con los últimos 7 días retenidos en memoria.
+
+---
+
+## Licencia y Créditos
+
+Desarrollado para el curso de **Inteligencia Artificial** — Universidad Tecnológica de Bolívar (UTB).  
+Autor: Jesús Andrés Pérez Fuentes.

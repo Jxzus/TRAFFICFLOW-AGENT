@@ -13,7 +13,15 @@ SLOTS_PER_DAY = 288
 
 def load_speed_frame(path: str) -> pd.DataFrame:
     """metr-la.h5 -> DataFrame (T, N) en mph. Los ceros se tratan como faltantes (NaN)."""
-    df = pd.read_hdf(path).astype("float32")
+    try:
+        df = pd.read_hdf(path).astype("float32")
+    except Exception:
+        import tables
+        with tables.open_file(path) as h5:
+            cols = [c.decode("utf-8") if isinstance(c, bytes) else str(c) for c in h5.root.df.axis0[:]]
+            idx = pd.to_datetime(h5.root.df.axis1[:])
+            vals = h5.root.df.block0_values[:].astype("float32")
+            df = pd.DataFrame(vals, index=idx, columns=cols)
     return df.where(df > 0)
 
 

@@ -100,3 +100,81 @@ def test_agent_triggers_recalibration_on_drift():
     for ts, row in te.iloc[:300].iterrows():
         agent.step(ts, row.to_numpy())
     assert Bad.called >= 1 and agent.recalibrations[0]["rolling_mape_30min"] > 0.1
+
+
+def test_explicit_agent_cycle_and_execution_logging(tmp_path):
+    import json
+    df, ids, _ = make_synthetic(8, 14, seed=3)
+    tr, _, te = chronological_split(df)
+    profile = HistoricalProfile().fit(tr)
+
+    log_file = tmp_path / "execution_log.jsonl"
+    agent = TrafficFlowAgent(
+        forecaster=PersistenceForecaster(out_len=12),
+        profile=profile,
+        sensor_ids=ids,
+        cfg=CFG["agent"],
+        in_len=12,
+        out_len=12,
+        execution_log_path=str(log_file),
+    )
+
+    # 1. Probar ciclo explícito paso a paso
+    ts_0 = te.index[0]
+    row_0 = te.iloc[0].to_numpy()
+    perception = agent.perceive(ts_0, row_0)
+    assert perception.num_sensors == len(ids)
+    assert perception.valid_sensors <= len(ids)
+    assert perception.timestamp == str(ts_0)
+
+    learning = agent.learn()
+    assert isinstance(learning, dict)
+
+    # Primer paso aún no tiene in_len (12) pasos en buffer
+    decision = agent.decide(perception)
+    assert decision is None
+
+    action = agent.act(decision)
+    assert not action.action_taken
+
+    # 2. Correr 30 pasos con step() completo
+    for ts, row in te.iloc[1:30].iterrows():
+        agent.step(ts, row.to_numpy())
+
+    # 3. Validar el log de ejecución guardado
+    assert log_file.exists()
+    lines = [json.loads(line) for line in log_file.read_text(encoding="utf-8").strip().split("\n")]
+    assert len(lines) == 29
+    last_log = lines[-1]
+
+    # Verificar que cada entrada del log guarda percepcin, decisin y accin con marca de tiempo
+    assert "timestamp" in last_log
+    assert "perception" in last_log and "valid_sensors" in last_log["perception"]
+    assert "decision" in last_log and last_log["decision"] is not None
+    assert "action" in last_log and "action_taken" in last_log["action"]
+    assert "learning" in last_log
+
+
+def test_traffic_environment_stochastic_and_partial_observability():
+    from trafficflow.environment import TrafficEnvironment
+
+    df, ids, adj = make_synthetic(8, 7, seed=4)
+    env = TrafficEnvironment(
+        df=df,
+        sensor_ids=ids,
+        adj_matrix=adj,
+        stochastic_noise_std=2.5,
+        sensor_failure_prob=0.10,
+        closed_loop_feedback=True,
+    )
+
+    ts_0, speeds_0 = env.reset()
+    assert len(speeds_0) == len(ids)
+    assert env.current_step == 0
+
+    # Simular accin en lazo cerrado
+    action = {"plan": "INCIDENTE", "sensors": ids[:2]}
+    ts_1, speeds_1, done, info = env.step(action=action)
+    assert not done
+    assert env.current_step == 1
+    assert "step" in info
