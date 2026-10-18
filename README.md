@@ -4,7 +4,10 @@ Agente inteligente basado en modelo con capacidad de aprendizaje (*Model-based L
 
 - **Datos:** [METR-LA](https://github.com/liyaguang/DCRNN) (207 sensores, Los Ángeles, marzo–junio 2012, intervalos de 5 min).
 - **Diseño:** Marco AIMA y [DL-Traff (arXiv 2108.09091)](https://arxiv.org/abs/2108.09091), de donde se toma el protocolo de evaluación y la arquitectura base (Graph WaveNet).
-- **Documentación de Fase 2:** Consulta [FASE_2_DESARROLLO_DEL_AGENTE.md](FASE_2_DESARROLLO_DEL_AGENTE.md) para el informe detallado de implementación y mapeo con la Fase 1.
+- **Entregables por Fase:**
+  - **Fase 1 (Selección Justificada):** [FASE_1_SELECCION_JUSTIFICADA_AGENTE.md](FASE_1_SELECCION_JUSTIFICADA_AGENTE.md) | [Word .docx](FASE_1_SELECCION_JUSTIFICADA_AGENTE.docx)
+  - **Fase 2 (Desarrollo del Agente):** [FASE_2_DESARROLLO_DEL_AGENTE.md](FASE_2_DESARROLLO_DEL_AGENTE.md) | [Word .docx](FASE_2_DESARROLLO_DEL_AGENTE.docx)
+  - **Fase 3 (Pruebas de Desempeño):** [FASE_3_PRUEBAS_MEDIDAS_DESEMPENO.md](FASE_3_PRUEBAS_MEDIDAS_DESEMPENO.md) | [Word .docx](FASE_3_PRUEBAS_MEDIDAS_DESEMPENO.docx)
 
 ---
 
