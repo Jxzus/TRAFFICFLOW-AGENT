@@ -5,12 +5,13 @@ Percepción -> Decisión -> Acción -> Aprendizaje y control semafórico.
 """
 from __future__ import annotations
 
+import json
 import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Response
+from fastapi.responses import HTMLResponse
 import numpy as np
 import pandas as pd
 import yaml
@@ -99,19 +100,51 @@ async def lifespan(app: FastAPI):
 
 def to_native(obj: Any) -> Any:
     """Convierte recursivamente tipos de NumPy y Pandas a tipos nativos estándar de Python."""
+    if obj is None:
+        return None
+    if isinstance(obj, np.ndarray):
+        return [to_native(x) for x in obj.tolist()]
     if isinstance(obj, (np.floating, float)):
         return float(obj) if not np.isnan(obj) else None
     if isinstance(obj, (np.integer, int)):
         return int(obj)
     if isinstance(obj, (np.bool_, bool)):
         return bool(obj)
-    if isinstance(obj, np.ndarray):
-        return [to_native(x) for x in obj.tolist()]
     if isinstance(obj, dict):
         return {str(k): to_native(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, (list, tuple, set)):
         return [to_native(x) for x in obj]
+    if hasattr(obj, "item") and not isinstance(obj, np.ndarray):
+        try:
+            return obj.item()
+        except Exception:
+            pass
+    if hasattr(obj, "to_dict"):
+        return to_native(obj.to_dict())
     return obj
+
+
+def safe_json_response(data: Any, status_code: int = 200) -> Response:
+    """Serializa cualquier estructura a JSON evitando jsonable_encoder de FastAPI.
+    
+    Garantiza compatibilidad total con NumPy y Python 3.12/3.14 en entornos de despliegue como Render.
+    """
+    native_data = to_native(data)
+
+    def _default(o):
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        if hasattr(o, "item"):
+            try:
+                return o.item()
+            except Exception:
+                pass
+        if hasattr(o, "tolist"):
+            return o.tolist()
+        return str(o)
+
+    body = json.dumps(native_data, default=_default, ensure_ascii=False)
+    return Response(content=body, status_code=status_code, media_type="application/json")
 
 
 app = FastAPI(
@@ -122,17 +155,17 @@ app = FastAPI(
 )
 
 
-@app.get("/health")
+@app.get("/health", response_class=Response)
 def health():
-    return JSONResponse(content=to_native({
+    return safe_json_response({
         "status": "healthy",
         "agent": "TrafficFlow-Agent",
         "version": "1.0.0",
         "mode": app_state.get("data_mode", "Desconocido"),
-    }))
+    })
 
 
-@app.get("/api/status")
+@app.get("/api/status", response_class=Response)
 def get_status():
     agent: TrafficFlowAgent = app_state["agent"]
     rep = agent.report()
@@ -143,11 +176,11 @@ def get_status():
         "last_decision": app_state.get("last_decision"),
         "report": rep,
     }
-    return JSONResponse(content=to_native(data))
+    return safe_json_response(data)
 
 
-@app.post("/api/step")
-@app.get("/api/step")
+@app.post("/api/step", response_class=Response)
+@app.get("/api/step", response_class=Response)
 def run_step():
     agent: TrafficFlowAgent = app_state["agent"]
     env: TrafficEnvironment = app_state["env"]
@@ -188,13 +221,13 @@ def run_step():
     if len(app_state["history"]) > 50:
         app_state["history"].pop(0)
 
-    return JSONResponse(content=to_native(step_summary))
+    return safe_json_response(step_summary)
 
 
-@app.post("/api/reset")
+@app.post("/api/reset", response_class=Response)
 def reset_simulation():
     init_agent()
-    return JSONResponse(content={"status": "reiniciado con éxito"})
+    return safe_json_response({"status": "reiniciado con éxito"})
 
 
 @app.get("/", response_class=HTMLResponse)
